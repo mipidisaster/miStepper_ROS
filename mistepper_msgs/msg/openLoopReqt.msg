@@ -1,3 +1,4 @@
+uint32    TestState
 uint8     InterfaceReg
 
 # Fan Motor request value

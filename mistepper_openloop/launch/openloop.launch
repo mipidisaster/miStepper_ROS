@@ -1,0 +1,24 @@
+<!-- Launch file for starting the ROS hardware interface for miStepper
+   - in the open loop configuration.
+   - Launch will also start recording data within dated ROSbags-->
+<launch>
+    <arg name="log_enable" default="true" />
+
+    <!-- Start the Hardware openloop node -->
+    <node name="mistepper_openloop"
+          pkg="mistepper_openloop"
+          type="mistepper_openloop"
+          output="screen">
+    </node>
+
+    <!-- Start a ROSBag node to log miStepper output and input data -->
+    <group if="$(arg log_enable)">
+        <node pkg="rosbag" type="record" name="interface_record"
+              args="record -o /home/pi/remote_debug/ros_ws/TestROS/data/ --split --duration=5m miStepper miStepperReqt" >
+        </node>
+    </group>
+
+    <!-- If required, you can kill the above nodes by typing within the command line
+       - rosnode kill /mistepper_openloop /interface_record -->
+
+</launch>

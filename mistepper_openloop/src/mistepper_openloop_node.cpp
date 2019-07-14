@@ -366,7 +366,7 @@ int main(int argc, char** argv) {
         //miStp.PoleSingleTransmit('D');      // Transmit code to get miStepper to provide data
 
         for (i = 0; i != MISTEPPER_READ_PACKETSIZE; i++) {// Expect "MISTEPPER_PACKETSIZE bytes of data
-            temparray[i] = miStp.PoleSingleRead();      // Read and put data into array
+            //temparray[i] = miStp.PoleSingleRead();      // Read and put data into array
         }
 
         // Read the sensor values
