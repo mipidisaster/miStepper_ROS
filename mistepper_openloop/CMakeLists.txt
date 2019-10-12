@@ -9,6 +9,8 @@ add_compile_options(-std=c++11)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS milibrary mistepper_msgs std_msgs roscpp)
 
+find_package(Boost REQUIRED COMPONENTS system)
+
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################

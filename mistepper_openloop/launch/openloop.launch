@@ -14,7 +14,7 @@
     <!-- Start a ROSBag node to log miStepper output and input data -->
     <group if="$(arg log_enable)">
         <node pkg="rosbag" type="record" name="interface_record"
-              args="record -o /home/pi/remote_debug/ros_ws/TestROS/data/ --split --duration=5m miStepper miStepperReqt" >
+              args="record -o /home/pi/remote_debug/ros_ws/TestROS/data/ --split --duration=15m miStepper miStepperReqt" >
         </node>
     </group>
 

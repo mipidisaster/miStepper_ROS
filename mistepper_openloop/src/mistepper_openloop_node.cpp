@@ -7,12 +7,30 @@
 #include <sys/ioctl.h>      // Needed for the I2C port
 #include <linux/i2c-dev.h>  // Needed for the I2C port
 
+#include <boost/shared_ptr.hpp>
+#include <thread>
+
 //#include <std_msgs/UInt16.h>
 #include "mistepper_msgs/openLoopData.h"
 #include "mistepper_msgs/openLoopReqt.h"
 
 #include "milibrary/drv/UARTPeriph/UARTPeriph.h"
 #include "milibrary/com/DataManip/DataManip.h"
+
+///////////////////////////////////////////////////////////////////////////
+#define MISTEPPER_CTRLLOOP_UART_HZ      100L
+
+#define MISTEPPER_CTRLLOOP_I2C_HZ       100L
+
+#define MISTEPPER_PUB_HZ                100L
+
+//////
+#define MISTEPPER_WRIT_PACKETSIZE       16L
+#define MISTEPPER_READ_PACKETSIZE       84L
+
+#define MISTEPPER_TRANSMIT_DATA_BIT     0
+#define MISTEPPER_RESET_DEVICE_BIT      1
+///////////////////////////////////////////////////////////////////////////
 
 float GetActTime(uint8_t *data) {
     uint16_t test = DataManip::_2x8bit_2_16bit(data);
@@ -30,8 +48,6 @@ typedef struct {
     uint8_t     STPDir;
     uint16_t    STPFreq;
 }   _miStepperDmd;
-
-_miStepperDmd       Demand_Handle = {  0  };
 
 class ExtDevice {
     private:
@@ -283,156 +299,228 @@ class ExtDevice {
 
         uint8_t readDeviceID(void) {  return(wiringPiI2CReadReg8(this->I2CHandle, 0xD0));  }
 
-        ~ExtDevice()  {};
+        ~ExtDevice()  {}
 };
 
-void UserRequestCallback(const mistepper_msgs::openLoopReqt::ConstPtr& msg) {
-    Demand_Handle.InterfaceReg  = msg->InterfaceReg;
-    
-    Demand_Handle.FanDmd        = msg->FanDmd;
+class miStepper {
+    private:
+    ExtDevice   BME280;
+    UARTPeriph  *comm;
 
-    Demand_Handle.STPEnable     = msg->STPEnable;
-    Demand_Handle.STPGear       = msg->STPGear;
-    Demand_Handle.STPDir        = msg->STPDir;
-    Demand_Handle.STPFreq       = msg->STPFreq;
-}
+    boost::shared_ptr<std::thread> uart_communication_loop_thread;      // Loop to build/read UART request packages
+    boost::shared_ptr<std::thread> i2c_communication_loop_thread;       // Loop to build/read I2C request packages
 
-#define MISTEPPER_WRIT_PACKETSIZE       16
-#define MISTEPPER_READ_PACKETSIZE       84
+    boost::shared_ptr<std::thread> publish_hardware_data_thread;
+    ros::Publisher  hardware_data_publisher;
 
-#define MISTEPPER_TRANSMIT_DATA_BIT     0
-#define MISTEPPER_RESET_DEVICE_BIT      1
+    ros::NodeHandle nh_;
+    ros::Subscriber userWriteReq_subscriber;
 
-void miStepperUserRequest(UARTPeriph *Device, 
-                          uint8_t InterfaceRe, float FanDemd, uint8_t STPEnb, uint8_t STPGer, uint8_t STPDir, uint16_t STPFreq) {
+    _miStepperDmd       Demand_Handle = {  0  };
+    struct UARTRecord {
+        uint8_t     packetArray[MISTEPPER_READ_PACKETSIZE];
+    };
 
-    uint8_t reqData[MISTEPPER_WRIT_PACKETSIZE]  =  {  0  };
-    reqData[0x00]   = 0xFF;
-    reqData[0x01]   = 0xA5;
+    UARTRecord  ThreadIntercfBuff[10];
+    GenBuffer<UARTRecord> ThdIntfc_Handle;
 
-    reqData[0x03]   = InterfaceRe;
-    DataManip::_float_2_4x8bit(  FanDemd,  &reqData[0x04]  );
+    public:
+    void writeRequest(uint8_t InterfaceRe, float FanDemd, uint8_t STPEnb, uint8_t STPGer, uint8_t STPDir, uint16_t STPFreq) {
+        uint8_t reqData[MISTEPPER_WRIT_PACKETSIZE]  =  {  0  };
+        reqData[0x00]   = 0xFF;
+        reqData[0x01]   = 0xA5;
 
-    reqData[0x08]   = STPEnb;
-    reqData[0x09]   = STPGer;
-    reqData[0x0A]   = STPDir;
+        reqData[0x03]   = InterfaceRe;
+        DataManip::_float_2_4x8bit(  FanDemd,  &reqData[0x04]  );
 
-    DataManip::_16bit_2_2x8bit(  STPFreq,  &reqData[0x0C]  );
+        reqData[0x08]   = STPEnb;
+        reqData[0x09]   = STPGer;
+        reqData[0x0A]   = STPDir;
 
-    reqData[0x0F]   = 0xFB;
+        DataManip::_16bit_2_2x8bit(  STPFreq,  &reqData[0x0C]  );
 
-    Device->PoleTransmit(&reqData[0], MISTEPPER_WRIT_PACKETSIZE);
-}
+        comm->PoleTransmit(&reqData[0], MISTEPPER_WRIT_PACKETSIZE);
+    }
 
+    void manageUartConnectionLoop() {
+        UARTRecord  tempRecord = { 0 };
+        UARTPeriph lcComm("/dev/serial0", 115200, 1024);
+        uint32_t i = 0;
+
+        comm = &lcComm;
+
+        comm->ReceiveIT(UART_Enable);   // Enable recieve "interrupt"
+
+        //ros::Rate uart_comm_rate(MISTEPPER_CTRLLOOP_UART_HZ);
+
+        // Transmit initial requests to device, to get initialised
+        this->writeRequest((uint8_t)(1 << MISTEPPER_RESET_DEVICE_BIT) ,  0.00, 0, 0, 0, 0);
+        ros::Duration(0.5).sleep(); // sleep for half a second
+
+        double time_hw_last_update;
+        time_hw_last_update = ros::Time::now().toSec();
+
+        while (ros::ok()) {
+            if (ros::Time::now().toSec() - time_hw_last_update > 1.0/MISTEPPER_CTRLLOOP_UART_HZ) {
+                time_hw_last_update += 1.0/MISTEPPER_CTRLLOOP_UART_HZ;
+
+                // Using pole transmission, build request to hardware
+                // Now kick off a write transmit to the miStepper device, with the user requests, and 
+                // the flag indicating data is to be transmitted back (to local computer)
+                this->writeRequest((Demand_Handle.InterfaceReg | (uint8_t)(1 << MISTEPPER_TRANSMIT_DATA_BIT) ),
+                                    Demand_Handle.FanDmd,
+                                    Demand_Handle.STPEnable,
+                                    Demand_Handle.STPGear,
+                                    Demand_Handle.STPDir,
+                                    Demand_Handle.STPFreq);
+
+                while (!(ros::Time::now().toSec() - time_hw_last_update > 1.0/MISTEPPER_CTRLLOOP_UART_HZ)) {
+                    if (comm->AnySerDataAvil() >= MISTEPPER_READ_PACKETSIZE) {  // see how many packets of data are
+                        // available within buffer
+                        // As the input has a certain sequence, need to ensure that the data is read correctly if
+                        // either device looses sync:
+                        // As will enter this loop only when the required number of bytes is available, just need to
+                        // check for the first 2 bytes to be correct, otherwise break out of if
+                        if (comm->PoleSingleRead() == 0xFF) {
+                            if (comm->PoleSingleRead() == 0x5A) {
+                                for (i = 2; i != MISTEPPER_READ_PACKETSIZE; i++) {  // Cycle through array
+                                    tempRecord.packetArray[i] = comm->PoleSingleRead();
+                                }
+
+                                ThdIntfc_Handle.InputWrite(tempRecord);
+                                for (i = 0; i != MISTEPPER_READ_PACKETSIZE; i++) {  // Cycle through array
+                                    tempRecord.packetArray[i] = 0;                  // and clear contents
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void manageI2CConnectionLoop() {
+        ros::Rate i2c_comm_rate(MISTEPPER_CTRLLOOP_I2C_HZ);
+
+        while (ros::ok()) {
+            BME280.getSensor();
+            i2c_comm_rate.sleep();
+        }
+    }
+
+    void publishHardwareData() {
+        mistepper_msgs::openLoopData    parameters;
+        UARTRecord  tempRecord = { 0 };
+        uint32_t seq = 0;
+
+        ros::Rate publish_hardware_data_rate(MISTEPPER_PUB_HZ);
+
+        // Wait for a complete packet
+        while (ros::ok()) {
+            // Only update the miStepper specific parameters if there is valid data to be decoded
+            // otherwise skip this step and use pre-existing values (last good values)
+            while (ThdIntfc_Handle.OutputRead(&tempRecord)  != GenBuffer_Empty) {
+                parameters.PktCount         = DataManip::_2x8bit_2_16bit(&tempRecord.packetArray[0x02]);
+                parameters.AngPos           = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x04]);
+                parameters.SPICmmFlt        = tempRecord.packetArray[0x08];
+                parameters.AS5048_ComFlt    = tempRecord.packetArray[0x09];
+                parameters.AS5048_DevFlt    = tempRecord.packetArray[0x0A];
+                parameters.AS5048_FltCount  = tempRecord.packetArray[0x0B];
+                parameters.SPIDur           = GetActTime(&tempRecord.packetArray[0x0C]);
+                parameters.SPIPer           = GetActTime(&tempRecord.packetArray[0x0E]);
+
+                parameters.ExtTmp           = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x10]);
+                parameters.I2CCmmFlt        = tempRecord.packetArray[0x14];
+                parameters.AD7415_ComFlt    = tempRecord.packetArray[0x15];
+                parameters.AD7415_DevFlt    = tempRecord.packetArray[0x16];
+                parameters.AD7415_FltCount  = tempRecord.packetArray[0x17];
+                parameters.I2CDur           = GetActTime(&tempRecord.packetArray[0x18]);
+                parameters.I2CPer           = GetActTime(&tempRecord.packetArray[0x1A]);
+
+                parameters.VoltRef          = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x1C]);
+                parameters.IntTmp           = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x20]);
+                parameters.FANVolt          = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x24]);
+                parameters.FANCurt          = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x28]);
+                parameters.STPVolt          = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x2C]);
+                parameters.STPCurt          = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x30]);
+                parameters.ADCFlt           = tempRecord.packetArray[0x37];
+
+                parameters.ADCDur           = GetActTime(&tempRecord.packetArray[0x38]);
+                parameters.ADCPer           = GetActTime(&tempRecord.packetArray[0x3A]);
+
+                parameters.FANAct           = DataManip::_4x8bit_2_float(&tempRecord.packetArray[0x3C]);
+                
+                parameters.FANDur           = GetActTime(&tempRecord.packetArray[0x40]);
+                parameters.FANPer           = GetActTime(&tempRecord.packetArray[0x42]);
+
+                parameters.STPFrequency     = DataManip::_2x8bit_2_16bit(&tempRecord.packetArray[0x44]);
+                parameters.STPState         = DataManip::_2x8bit_2_16bit(&tempRecord.packetArray[0x46]);
+                parameters.STPcalcPosition  = DataManip::_4x8bit_2_32bit(&tempRecord.packetArray[0x48]);
+
+                parameters.STPDur           = GetActTime(&tempRecord.packetArray[0x4C]);
+                parameters.STPPer           = GetActTime(&tempRecord.packetArray[0x4E]);
+
+                parameters.USTDur           = GetActTime(&tempRecord.packetArray[0x50]);
+                parameters.USTPer           = GetActTime(&tempRecord.packetArray[0x52]);
+            };
+            // At this point the "parameter" variable will contain valid data to be published, or
+            // hold last good values
+            // Following parameters will always be as per latest data
+            parameters.header.seq = seq;
+            seq++;
+            parameters.header.stamp = ros::Time::now();
+
+            parameters.MtrTmp           = BME280.Temp;
+            parameters.Humidity         = BME280.Humd;
+            parameters.Pressure         = BME280.Pres;
+
+            hardware_data_publisher.publish(parameters);
+            publish_hardware_data_rate.sleep();
+        }
+    }
+
+    void UserRequestCallback(const mistepper_msgs::openLoopReqt::ConstPtr& msg) {
+        Demand_Handle.InterfaceReg  = msg->InterfaceReg;
+        
+        Demand_Handle.FanDmd        = msg->FanDmd;
+
+        Demand_Handle.STPEnable     = msg->STPEnable;
+        Demand_Handle.STPGear       = msg->STPGear;
+        Demand_Handle.STPDir        = msg->STPDir;
+        Demand_Handle.STPFreq       = msg->STPFreq;
+    }
+
+    miStepper(void) {
+        wiringPiSetupGpio();
+
+        ThdIntfc_Handle.create(&ThreadIntercfBuff[0], 10);
+
+        userWriteReq_subscriber     = nh_.subscribe("miStepperReqt", 100, &miStepper::UserRequestCallback, this);
+
+#ifndef DISCONNECT_HARDWARE 
+        uart_communication_loop_thread.reset(new std::thread(boost::bind(&miStepper::manageUartConnectionLoop, this)));
+#endif
+        i2c_communication_loop_thread.reset(new std::thread(boost::bind(&miStepper::manageI2CConnectionLoop, this)));
+        ros::Duration(2).sleep(); // sleep for two seconds, to allow hardware to go through initial cycle(s)
+
+        hardware_data_publisher = nh_.advertise<mistepper_msgs::openLoopData>("miStepper", 10);
+        publish_hardware_data_thread.reset(new std::thread(boost::bind(&miStepper::publishHardwareData, this)));
+    }
+
+    ~miStepper() {}
+};
 
 int main(int argc, char** argv) {
-    wiringPiSetupGpio();
-
-    UARTPeriph miStp("/dev/serial0", 115200, 1024);
-
-    uint8_t arrayData[10] = { 0 };
-
     ros::init(argc, argv, "miStepper_HAL");
+
+    ros::AsyncSpinner spinner(4);   // Utilise all 4 cores
+    spinner.start();
+
     ros::NodeHandle nh;
 
-    ros::Publisher  pub1 = nh.advertise<mistepper_msgs::openLoopData>("miStepper", 10);
-    ros::Subscriber sub1 = nh.subscribe("miStepperReqt", 100, UserRequestCallback);
+    miStepper nd;
 
-    ros::Rate loop_rate(100);
-
-    uint8_t     i = 0;
-    uint32_t    seq = 0;
-
-    uint8_t     temparray[MISTEPPER_READ_PACKETSIZE] = { 0 };
-
-    // Test area for external temperature sensor
-    uint8_t return_ID;
-    ExtDevice BME280;
-
-    //miStp.PoleSingleTransmit('D');      // Transmit code to get miStepper to provide data
-    miStepperUserRequest(&miStp, (uint8_t)(1 << MISTEPPER_RESET_DEVICE_BIT) ,  0.00, 0, 0, 0, 0);
-
-    ros::Duration(0.5).sleep(); // sleep for half a second
-
-    while (ros::ok()) {
-        miStepperUserRequest(&miStp,    (Demand_Handle.InterfaceReg | (1 << MISTEPPER_TRANSMIT_DATA_BIT) ),
-                                        Demand_Handle.FanDmd,
-                                        Demand_Handle.STPEnable,
-                                        Demand_Handle.STPGear,
-                                        Demand_Handle.STPDir,
-                                        Demand_Handle.STPFreq
-        );
-
-        //miStp.PoleSingleTransmit('D');      // Transmit code to get miStepper to provide data
-
-        for (i = 0; i != MISTEPPER_READ_PACKETSIZE; i++) {// Expect "MISTEPPER_PACKETSIZE bytes of data
-            //temparray[i] = miStp.PoleSingleRead();      // Read and put data into array
-        }
-
-        // Read the sensor values
-        BME280.getSensor();
-
-        mistepper_msgs::openLoopData    parameters;
-
-        parameters.header.seq = seq;
-        seq++;
-        parameters.header.stamp = ros::Time::now();
-
-        parameters.MtrTmp           = BME280.Temp;
-        parameters.Humidity         = BME280.Humd;
-        parameters.Pressure         = BME280.Pres;
-
-        // Layout of data in alignment with "PacketTransmission.xlsx" Sheet "USARTPacket"
-        //                                                                    Version 1.1
-        
-        parameters.PktCount         = DataManip::_2x8bit_2_16bit(&temparray[2]);
-        parameters.AngPos           = DataManip::_4x8bit_2_float(&temparray[0x04]);
-        parameters.SPICmmFlt        = temparray[0x08];
-        parameters.AS5048_ComFlt    = temparray[0x09];
-        parameters.AS5048_DevFlt    = temparray[0x0A];
-        parameters.AS5048_FltCount  = temparray[0x0B];
-        parameters.SPIDur           = GetActTime(&temparray[0x0C]);
-        parameters.SPIPer           = GetActTime(&temparray[0x0E]);
-
-        parameters.ExtTmp           = DataManip::_4x8bit_2_float(&temparray[0x10]);
-        parameters.I2CCmmFlt        = temparray[0x14];
-        parameters.AD7415_ComFlt    = temparray[0x15];
-        parameters.AD7415_DevFlt    = temparray[0x16];
-        parameters.AD7415_FltCount  = temparray[0x17];
-        parameters.I2CDur           = GetActTime(&temparray[0x18]);
-        parameters.I2CPer           = GetActTime(&temparray[0x1A]);
-
-        parameters.VoltRef          = DataManip::_4x8bit_2_float(&temparray[0x1C]);
-        parameters.IntTmp           = DataManip::_4x8bit_2_float(&temparray[0x20]);
-        parameters.FANVolt          = DataManip::_4x8bit_2_float(&temparray[0x24]);
-        parameters.FANCurt          = DataManip::_4x8bit_2_float(&temparray[0x28]);
-        parameters.STPVolt          = DataManip::_4x8bit_2_float(&temparray[0x2C]);
-        parameters.STPCurt          = DataManip::_4x8bit_2_float(&temparray[0x30]);
-        parameters.ADCFlt           = temparray[0x37];
-
-        parameters.ADCDur           = GetActTime(&temparray[0x38]);
-        parameters.ADCPer           = GetActTime(&temparray[0x3A]);
-
-        parameters.FANAct           = DataManip::_4x8bit_2_float(&temparray[0x3C]);
-        
-        parameters.FANDur           = GetActTime(&temparray[0x40]);
-        parameters.FANPer           = GetActTime(&temparray[0x42]);
-
-        parameters.STPFrequency     = DataManip::_2x8bit_2_16bit(&temparray[0x44]);
-        parameters.STPState         = DataManip::_2x8bit_2_16bit(&temparray[0x46]);
-        parameters.STPcalcPosition  = DataManip::_4x8bit_2_32bit(&temparray[0x48]);
-
-        parameters.STPDur           = GetActTime(&temparray[0x4C]);
-        parameters.STPPer           = GetActTime(&temparray[0x4E]);
-
-        parameters.USTDur           = GetActTime(&temparray[0x50]);
-        parameters.USTPer           = GetActTime(&temparray[0x52]);
-
-        pub1.publish(parameters);
-
-        ros::spinOnce();
-        loop_rate.sleep();
-    }
+    ros::waitForShutdown();
 
     ROS_INFO("Open Loop finished, due to ROS exit");
 }
