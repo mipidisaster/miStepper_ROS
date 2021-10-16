@@ -3,12 +3,16 @@ This library contains the support for controlling the miStepper via ROS (the int
 
 # Linked libraries:
 ## milibrary
-This library makes use of an extra repository - ['milibrary'](https://github.com/mipidisaster/miLibrary), which is not included within this repository; due to it being a seperate one. So this will need to be included within the root of this library, and called `milibrary`:
+This library makes use of an extra repository - ['milibrary'](https://github.com/mipidisaster/miLibrary), which is not included within this repository; due to it being a seperate one.. So this will need to be included...
+> It doesn't matter were this is stored, however it should be at a high enough level that any lower level scripts can make reference to it.
+> To avoid any ROS build issues, suggest that this be placed within the initial 'src' of workspace
 ```
-<project root>
+<ROS works>
   ├─ < other folders >
-  └─ milibrary
-          └─ <contents>
+  └─ src
+      ├─ milibrary
+      │      └─ <contents>
+      └─ <other packages>
 ```
 Additionally, the file(s) `milibrary-CMakeLists.txt` and `milibrary-package.xml` will need to be placed within the `milibrary` folder, and renamed to `CMakeLists.txt`/`package.xml`.
 
@@ -22,6 +26,8 @@ As this library is creating the ROS infrastructure for the `miStepper` it is nat
 
 # Build Tree
 ![build tree](/_image/Build_tree.png)
+
+v0.1.1
 
 v0.1.0
 * Initial release (to be used with [milibrary v0.1.0](https://github.com/mipidisaster/miLibrary/tree/v0.1.0) and [miStepper v0.1.0](https://github.com/mipidisaster/miStepper))
