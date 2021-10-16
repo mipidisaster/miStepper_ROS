@@ -28,6 +28,7 @@ As this library is creating the ROS infrastructure for the `miStepper` it is nat
 ![build tree](/_image/Build_tree.png)
 
 v0.1.1
+> In work...
 
 v0.1.0
 * Initial release (to be used with [milibrary v0.1.0](https://github.com/mipidisaster/miLibrary/tree/v0.1.0) and [miStepper v0.1.0](https://github.com/mipidisaster/miStepper))
