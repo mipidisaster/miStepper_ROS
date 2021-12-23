@@ -397,7 +397,7 @@ public:
      */
     void callbackReqestSubscriber(const mistepper_msgs::openLoopReqt::ConstPtr& msg) {
         _hardware_handle_->reqt_mode        = msg->InterfaceReg |
-                                              miStepperUSART::kenable_interface;
+                                              miStepperUSART::kenable_transmit;
 
         _hardware_handle_->reqt_fan_demand          = msg->FanDmd;
 

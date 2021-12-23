@@ -27,6 +27,7 @@
                 output  = "screen"
                 >
         </node>
+        
         <node   machine = "$(arg remote_device)"
                 name    = "talker"
                 pkg     = "beginner_tutorials"
@@ -50,6 +51,14 @@
                    - following changes:
                    - /boot/config.txt has to be updated with 'init_uart_clock=14745600' (0xE10000)
                    -->
+        </node>
+        
+        <node   machine = "$(arg remote_device)"
+                name    = "mistepper_openloop"
+                pkg     = "mistepper_driver"
+                type    = "mistepper_hst"
+                output  = "screen"
+                >
         </node>
     </group>
 </launch>

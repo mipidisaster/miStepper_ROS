@@ -12,9 +12,11 @@
     
 
     <!-- Start a ROSBag node to log miStepper output and input data -->
-    <remap from = "/hel/usart1/read_uart" to = "/read_uart"/>
-    <remap from = "/hel/usart1/write_uart" to = "/write_uart"/>
-    
+   
+    <remap from = "/hel/usart1/mistepper_openloop/data_stream"  to = "/miStepper"/>
+    <remap from = "/hel/usart1/mistepper_openloop/request"      to = "/miStepperReqt"/>
+
+
     <group ns = "hel">
         <include file="$(find mistepper_bringup)/launch/openloop.launch">
             <arg name="log_enable" value = "$(arg log_enable)"/>
