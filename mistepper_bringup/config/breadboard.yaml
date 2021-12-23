@@ -1,0 +1,2 @@
+gpio_array:
+    hardware_service_node/config/output/gpio_pin: [16, 20, 21, 26, 19, 13, 6, 5]

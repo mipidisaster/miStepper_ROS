@@ -16,10 +16,10 @@ float32  STPCurt
 # Temperatures
 float32  ExtTmp
 float32  IntTmp
-float32  MtrTmp
+#float32  MtrTmp
 
-float32  Humidity
-float32  Pressure
+#float32  Humidity
+#float32  Pressure
 
 # Control surfaces
 float32  FANAct

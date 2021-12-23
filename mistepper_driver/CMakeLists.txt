@@ -1,15 +1,20 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(mistepper_openloop)
+project(mistepper_driver)
 
-## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11)
+## Compile as C++17, "guessed" to be supported in ROS Kinetic and newer
+add_compile_options(-std=c++17)
 
 ## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS milibrary mistepper_msgs std_msgs roscpp)
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  std_msgs
+  
+  milibrary
+  mistepper_msgs
+)
 
-find_package(Boost REQUIRED COMPONENTS system)
+## System dependencies are found with CMake's conventions
+# find_package(Boost REQUIRED COMPONENTS system)
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -93,8 +98,8 @@ find_package(Boost REQUIRED COMPONENTS system)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES mistepper_openloop
-#  CATKIN_DEPENDS milibrary roscpp
+#  LIBRARIES mistepper_driver
+  CATKIN_DEPENDS roscpp std_msgs milibrary mistepper_msgs
 #  DEPENDS system_lib
 )
 
@@ -106,17 +111,12 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include ${catkin_INCLUDE_DIRS}
-# include
   ${catkin_INCLUDE_DIRS}
 )
 
-add_definitions(-Dzz__MiRaspbPi__zz)
-
 ## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-add_executable(mistepper_openloop
-                  src/mistepper_openloop_node.cpp)
+add_executable(mistepper_hst
+               src/mistepper_hst_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -126,72 +126,42 @@ add_executable(mistepper_openloop
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(mistepper_openloop 
-                          ${mistepper_openloop_EXPORTED_TARGETS}
-                          ${catkin_EXPORTED_TARGETS})
+add_dependencies(mistepper_hst
+                 ${mistepper_driver_EXPORTED_TARGETS}
+                 ${catkin_EXPORTED_TARGETS})
 
-## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
 
 EXECUTE_PROCESS( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE )
 message( STATUS "Architecture: ${ARCHITECTURE}" )
 
+
 if (${ARCHITECTURE} MATCHES "arm")
-    message(STATUS "wiringPi library is required - arm processor")
-    target_link_libraries(mistepper_openloop
-        ${catkin_LIBRARIES} 
-        -lwiringPi
-    )
+    message(STATUS "wiring library is required - arm processor")
+    message(STATUS "additionally, zz__MiEmbedType__zz configured for '10' - RaspberryPi")
+    
+    add_definitions(-Dzz__MiEmbedType__zz=10)
+        
 else()
-    message(STATUS "wiringPi library not required")
-    target_link_libraries(mistepper_openloop
-        ${catkin_LIBRARIES} 
-    )
+    message(STATUS "wiring library not required")
+    message(STATUS "additionally, zz__MiEmbedType__zz configured for '0' - No Hardware")
+    
+    add_definitions(-Dzz__MiEmbedType__zz=0)
+
 endif()
+
+target_link_libraries(mistepper_hst milibrary ${catkin_LIBRARIES})
 
 #############
 ## Install ##
 #############
-
-# all install targets should use catkin DESTINATION variables
-# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark executables and/or libraries for installation
-# install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
-
-## Mark other files for installation (e.g. launch and bag files, etc.)
-# install(FILES
-#   # myfile1
-#   # myfile2
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-# )
+# -- None --
 
 #############
 ## Testing ##
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_mistepper_openloop.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_mistepper_driver.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()
