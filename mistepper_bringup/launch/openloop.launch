@@ -15,7 +15,7 @@
               name    = "interface_record"
               pkg     = "rosbag"
               type    = "record"
-              args    = "record -o /home/pi/catkin_ws/debug/miStepper_ROS/data/ --split --duration=15m miStepper miStepperReqt" >
+              args    = "record -o /home/pi/catkin_ws/debug/miStepper_ROS/data/ --split --duration=15m /miStepper /miStepperReqt" >
         </node>
     </group>
     
