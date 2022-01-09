@@ -34,7 +34,7 @@ v0.2.0
 * Launch files updated such that they can be called from a local machine, and run the ROS packages on a remote device.
 
 v0.1.0
-* Initial release (to be used with [milibrary v0.1.0](https://github.com/mipidisaster/miLibrary/tree/v0.1.0) and [miStepper v0.1.0](https://github.com/mipidisaster/miStepper))
+* Initial release (to be used with [milibrary v0.1.0](https://github.com/mipidisaster/miLibrary/tree/v0.1.0) and [miStepper v0.1.0](https://github.com/mipidisaster/miStepper/tree/v0.1.0))
 
 # Wiki
 The wiki for this can be found within the Github repository for this - > to be added
