@@ -14,21 +14,24 @@ This library makes use of an extra repository - ['milibrary'](https://github.com
       │      └─ <contents>
       └─ <other packages>
 ```
-Additionally, the file(s) `milibrary-CMakeLists.txt` and `milibrary-package.xml` will need to be placed within the `milibrary` folder, and renamed to `CMakeLists.txt`/`package.xml`.
 
 ## miStepper
 As this library is creating the ROS infrastructure for the `miStepper` it is natural that this will be interfacing with this library. No manual changes are needed for this library
 
 # Stack overview
-## open_loop
+## High Speed Telemetry (HST) via USART
 > To be added
 
 
 # Build Tree
 ![build tree](/_image/Build_tree.png)
 
-v0.1.1
-> In work...
+v0.2.0
+* Linked with [milibrary v0.2.2](https://github.com/mipidisaster/miLibrary/tree/v0.2.2), the miStepper version to be defined within the miStepper repository.
+* Clean up code, such that the interface node to the miStepper (USART/HST) includes common code used within the 'miStepper' repository
+* Remove existing code reading the BME280, as this isn't specific for the miStepper (USART/HST) interface
+> This is to be included via a seperate node call, which is to be created
+* Launch files updated such that they can be called from a local machine, and run the ROS packages on a remote device.
 
 v0.1.0
 * Initial release (to be used with [milibrary v0.1.0](https://github.com/mipidisaster/miLibrary/tree/v0.1.0) and [miStepper v0.1.0](https://github.com/mipidisaster/miStepper))
