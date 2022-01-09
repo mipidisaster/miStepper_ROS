@@ -338,7 +338,7 @@ public:
         msg.FANAct          = _hardware_handle_->fan_demand;
 
         msg.STPFrequency    = _hardware_handle_->stepper_frequency;
-        msg.STPState        = _hardware_handle_->stepper_gear;
+        msg.STPState        = _hardware_handle_->stepper_state;
         msg.STPcalcPosition = _hardware_handle_->stepper_calc_position;
 
         // Task timers
