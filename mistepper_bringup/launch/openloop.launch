@@ -1,0 +1,64 @@
+<!-- Launch file for starting the ROS hardware interface for miStepper in the open loop 
+   - configuration.
+   - Launch will also start recording data within dated ROSbags
+   -->
+
+<launch>
+    <arg name="log_enable" default="false" />
+    <arg name="remote_device" default="" />
+    
+    <rosparam file="$(find mistepper_bringup)/config/breadboard.yaml" />
+
+    <!-- Start a ROSBag node to log miStepper output and input data -->
+    <group if="$(arg log_enable)">
+        <node machine = "$(arg remote_device)"
+              name    = "interface_record"
+              pkg     = "rosbag"
+              type    = "record"
+              args    = "record -o /home/pi/catkin_ws/debug/miStepper_ROS/data/ --split --duration=15m /miStepper /miStepperReqt" >
+        </node>
+    </group>
+    
+    <group ns = "gpio_array">
+        <node   machine = "$(arg remote_device)"
+                name    = "hardware_service_node"
+                pkg     = "milibrary"
+                type    = "gpio_node"
+                output  = "screen"
+                >
+        </node>
+        
+        <node   machine = "$(arg remote_device)"
+                name    = "talker"
+                pkg     = "beginner_tutorials"
+                type    = "talker"
+                output  = "screen"
+                >
+                <param name = "loop_rate" type = "double" value = "2"/>
+        </node>
+    </group>
+    
+    <group ns = "usart1">
+        <node   machine = "$(arg remote_device)"
+                name    = "hardware_service_node"
+                pkg     = "milibrary"
+                type    = "uart_node"
+                output  = "screen"
+                >
+                <param name = "config/hardware_address" type = "string" value = "/dev/serial0" />
+                <param name = "config/baud_rate"        type = "int"    value = "500000" />
+                <!-- So as to support this higher UART BAUD RATE, the RaspberryPi needs the 
+                   - following changes:
+                   - /boot/config.txt has to be updated with 'init_uart_clock=14745600' (0xE10000)
+                   -->
+        </node>
+        
+        <node   machine = "$(arg remote_device)"
+                name    = "mistepper_openloop"
+                pkg     = "mistepper_driver"
+                type    = "mistepper_hst"
+                output  = "screen"
+                >
+        </node>
+    </group>
+</launch>
