@@ -97,7 +97,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+  INCLUDE_DIRS include
 #  LIBRARIES mistepper_driver
   CATKIN_DEPENDS roscpp std_msgs milibrary mistepper_msgs
 #  DEPENDS system_lib
@@ -116,6 +116,7 @@ include_directories(
 
 ## Declare a C++ executable
 add_executable(mistepper_hst
+               src/utils/miStepperUSART.cpp
                src/mistepper_hst_node.cpp)
 
 ## Rename C++ executable without prefix

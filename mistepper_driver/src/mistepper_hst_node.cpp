@@ -57,7 +57,7 @@
 
 #include "FileIndex.h"
 // ~~~~~~~~~~~~~~~~~~~
-#include FilIndMStpUARTHD               // Header for miStepper UART interface
+#include "mistepper_driver/miStepperUSART.h"    // Header for miStepper UART interface
 
 //=================================================================================================
 /**************************************************************************************************
