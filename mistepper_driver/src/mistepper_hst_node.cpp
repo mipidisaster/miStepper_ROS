@@ -45,8 +45,8 @@
 
 // Other Libraries
 // ---------------
-#include "ros/ros.h"
-#include "ros/callback_queue.h"
+#include <ros/ros.h>
+#include <ros/callback_queue.h>
 
 // Project Libraries
 // -----------------
@@ -55,8 +55,6 @@
 #include "mistepper_msgs/openLoopData.h"
 #include "mistepper_msgs/openLoopReqt.h"
 
-#include "FileIndex.h"
-// ~~~~~~~~~~~~~~~~~~~
 #include "mistepper_driver/miStepperUSART.h"    // Header for miStepper UART interface
 
 //=================================================================================================
@@ -84,6 +82,11 @@ private:
     std::string         kUART_write_service         = "write_uart";
 
 private:
+    miStepperUSART          *_hardware_handle_;
+
+    uint8_t                 _comm_buffer_[2][MISTEPPER_BUFFER_SIZE] = { 0 };
+    uint16_t                _packet_sequence_                       =  0;
+
 /**************************************************************************************************
  * == ROS STUFF == >>>   ROBOT OPERATING SYSTEM (ROS) OBJECTS    <<<
  *   -----------
@@ -94,11 +97,6 @@ private:
 
     ros::NodeHandle         _nh_hardware_;
     ros::CallbackQueue      _hardware_callback_queue_;
-
-    miStepperUSART          *_hardware_handle_;
-
-    uint8_t                 _comm_buffer_[2][MISTEPPER_BUFFER_SIZE] = { 0 };
-    uint16_t                _packet_sequence_                       =  0;
 
     // PARAMETERS
     ////////////////////////
@@ -248,12 +246,13 @@ public:
     int configNode(void)
     {
         //=========================================================================================
+        // Input parameters
         _private_nh_.param<double>(kconfig_sub_area + knode_loop_rate,
                                    _loop_rate_parameter_,
                                    100.0);
 
         //=========================================================================================
-
+        // Duplication check
 
 
         //=========================================================================================
@@ -264,6 +263,7 @@ public:
 
         ROS_INFO("miStepper open loop has been setup");
         //=========================================================================================
+        // Publishers
         _mistepper_data_publisher_ = _private_nh_.advertise<mistepper_msgs::openLoopData>(
                                                 kMStp_publish_data,
                                                 20);
@@ -278,7 +278,7 @@ public:
         // Timers
 
         //=========================================================================================
-        // Clients
+        // Clients/Servers
         for (uint8_t i = 0; i != 10; i++) {
             if ( !(ros::service::exists(kUART_read_service, false))  ||
                  !(ros::service::exists(kUART_write_service, false)) )  {
@@ -296,8 +296,12 @@ public:
             }
         }
 
-        _usart_read_client_  = _nh_.serviceClient<milibrary::BUSctrl>(kUART_read_service,  true);
-        _usart_write_client_ = _nh_.serviceClient<milibrary::BUSctrl>(kUART_write_service, true);
+        _usart_read_client_  = _nh_.serviceClient<milibrary::BUSctrl>(
+                                                kUART_read_service,
+                                                true);
+        _usart_write_client_ = _nh_.serviceClient<milibrary::BUSctrl>(
+                                                kUART_write_service,
+                                                true);
 
         //=========================================================================================
 
