@@ -85,7 +85,7 @@ private:
     miStepperUSART          *_hardware_handle_;
 
     uint8_t                 _comm_buffer_[2][MISTEPPER_BUFFER_SIZE] = { 0 };
-    uint16_t                _packet_sequence_                       =  0;
+    uint32_t                _packet_sequence_                       =  0;
 
 /**************************************************************************************************
  * == ROS STUFF == >>>   ROBOT OPERATING SYSTEM (ROS) OBJECTS    <<<
@@ -264,11 +264,11 @@ public:
         ROS_INFO("miStepper open loop has been setup");
         //=========================================================================================
         // Publishers
-        _mistepper_data_publisher_ = _private_nh_.advertise<mistepper_msgs::openLoopData>(
+        _mistepper_data_publisher_ = _nh_.advertise<mistepper_msgs::openLoopData>(
                                                 kMStp_publish_data,
                                                 20);
 
-        _mistepper_request_subscriber_ = _private_nh_.subscribe(
+        _mistepper_request_subscriber_ = _nh_.subscribe(
                                                 kMStp_subscribe_request,
                                                 20,
                                                 &rosmiStepperHST::callbackReqestSubscriber,
