@@ -6,8 +6,6 @@
 <launch>
     <arg name="log_enable" default="false" />
     <arg name="remote_device" default="" />
-    
-    <rosparam file="$(find mistepper_bringup)/config/breadboard.yaml" />
 
     <!-- Start a ROSBag node to log miStepper output and input data -->
     <group if="$(arg log_enable)">
@@ -30,8 +28,8 @@
         
         <node   machine = "$(arg remote_device)"
                 name    = "talker"
-                pkg     = "beginner_tutorials"
-                type    = "talker"
+                pkg     = "mistepper_testsetup"
+                type    = "led_counter"
                 output  = "screen"
                 >
                 <param name = "loop_rate" type = "double" value = "2"/>
