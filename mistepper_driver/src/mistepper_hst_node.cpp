@@ -16,7 +16,7 @@
  *      ~/config        /loop_rate
  *                      [ Floating data value, specifying the rate that the miStepper device is
  *                      [ interrogated.
- *                      [ - Note, if none is provided will defaul to '100Hz'
+ *                      [ - Note, if none is provided will default to '100Hz'
  *
  *   Publishers:
  *      data_stream
@@ -70,6 +70,7 @@
  *************************************************************************************************/
 class rosmiStepperHST {
 private:
+    // Constant(s) used within the class.
     std::string         kconfig_sub_area            = "config/";
 
     std::string         knode_loop_rate             = "loop_rate";
@@ -202,10 +203,10 @@ public:
      *  @param:  void
      *  @retval: void
      */
-    void hardwareCallbackThread(void) {
-        ros::SingleThreadedSpinner spinner;
-        spinner.spin(&_hardware_callback_queue_);
-    }
+    //void hardwareCallbackThread(void) {
+    //    ros::SingleThreadedSpinner spinner;
+    //    spinner.spin(&_hardware_callback_queue_);
+    //}
 
     /*
      *  @brief:  Function to encapsulate the looping of this node.
@@ -253,7 +254,7 @@ public:
 
         //=========================================================================================
         // Duplication check
-
+        // Not needed for this node
 
         //=========================================================================================
 
@@ -263,7 +264,7 @@ public:
 
         ROS_INFO("miStepper open loop has been setup");
         //=========================================================================================
-        // Publishers
+        // Publishers/Subscribers
         _mistepper_data_publisher_ = _nh_.advertise<mistepper_msgs::openLoopData>(
                                                 kMStp_publish_data,
                                                 20);
@@ -276,6 +277,7 @@ public:
 
         //=========================================================================================
         // Timers
+        // None
 
         //=========================================================================================
         // Clients/Servers
@@ -428,6 +430,8 @@ int main(int argc, char **argv)
 
     rosmiStepperHST  node_miStepper_openloop(&n, &private_params);
 
+    ros::shutdown();            // If get to this point of the main() function. Then should be
+                                // shutdowning the node - due to error
     ros::waitForShutdown();
 
     // On node shutdown, don't think it reaches this part of main()
